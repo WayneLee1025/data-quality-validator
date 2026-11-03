@@ -1,0 +1,16 @@
+﻿table_name,column_name,data_type,nullable,source_system,comment
+T_CRR_SBMT_CUST,cust_id,"VARCHAR2(32)",N,核心系统,客户唯一标识
+T_CRR_SBMT_CUST,cust_name,"VARCHAR2(128)",N,核心系统,客户姓名
+T_CRR_SBMT_CUST,id_type,"VARCHAR2(4)",N,核心系统,证件类型
+T_CRR_SBMT_CUST,id_no,"VARCHAR2(32)",Y,核心系统,证件号码
+T_CRR_SBMT_CUST,open_date,DATE,N,核心系统,开户日期
+T_CRR_SBMT_ACCT,acct_no,"VARCHAR2(32)",N,账户系统,账号
+T_CRR_SBMT_ACCT,cust_id,"VARCHAR2(32)",N,账户系统,客户号
+T_CRR_SBMT_ACCT,balance,"NUMBER(18,2)",Y,账户系统,账户余额
+T_CRR_SBMT_ACCT,status,"VARCHAR2(2)",N,账户系统,账户状态
+T_CRR_SBMT_ACCT,branch_code,"VARCHAR2(8)",Y,账户系统,机构码
+T_CRR_SBMT_TXN,txn_id,"VARCHAR2(32)",N,交易系统,交易流水号
+T_CRR_SBMT_TXN,acct_no,"VARCHAR2(32)",N,交易系统,账号
+T_CRR_SBMT_TXN,txn_amt,"NUMBER(18,2)",N,交易系统,交易金额
+T_CRR_SBMT_TXN,txn_date,DATE,N,交易系统,交易日期
+T_CRR_SBMT_TXN,txn_type,"VARCHAR2(4)",Y,交易系统,交易类型
