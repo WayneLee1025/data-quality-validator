@@ -54,3 +54,5 @@ PY week3_validation.py --data 你的目录
 ## 后续路线
 
 元数据比对器 · FastAPI 工具服务 · RAG 报送口径问答（按《Python高效学习路径-B方案.md》推进）。
+
+> 最后更新：2026-11-03，已配置 SSH 免令牌推送。
