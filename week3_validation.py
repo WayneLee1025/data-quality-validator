@@ -12,10 +12,11 @@
 （PY = C:/Users/12821/.workbuddy/binaries/python/envs/default/Scripts/python.exe）
 """
 from pathlib import Path
+import argparse
 
 import pandas as pd
 
-DATA = Path(__file__).parent / "data"
+DEFAULT_DATA = Path(__file__).parent / "data"
 
 # 取值域 / 格式常量（对应 PL/SQL 里的校验码表）
 STATUS_DOMAIN = {"0", "1"}
@@ -24,10 +25,10 @@ ID_NO_LEN = 18
 DATE_RE = r"^\d{4}-\d{2}-\d{2}$"
 
 
-def load(name: str) -> pd.DataFrame:
+def load(name: str, data_dir: Path = DEFAULT_DATA) -> pd.DataFrame:
     # 关键：代码型字段（id_no/status/txn_type 等）必须按字符串读，
     # 否则 "01" 会被 pandas 误转成整数 1，后续取值域校验全误报。
-    df = pd.read_csv(DATA / name, dtype=str)
+    df = pd.read_csv(data_dir / name, dtype=str)
     # 金额列再显式转数值，供业务规则比较
     for c in ("balance", "txn_amt"):
         if c in df.columns:
@@ -46,9 +47,18 @@ def report(rule_name: str, bad: pd.DataFrame) -> int:
 
 
 def main() -> None:
-    cust = load("cust.csv")
-    acct = load("acct.csv")
-    txn = load("txn.csv")
+    ap = argparse.ArgumentParser(description="监管报送前置质检（pandas 版）")
+    ap.add_argument(
+        "--data",
+        default=str(DEFAULT_DATA),
+        help="数据目录（默认 data/，可指向任意报送抽取样本）",
+    )
+    args = ap.parse_args()
+    data_dir = Path(args.data)
+
+    cust = load("cust.csv", data_dir)
+    acct = load("acct.csv", data_dir)
+    txn = load("txn.csv", data_dir)
     total = 0
 
     # 1) 非空校验
