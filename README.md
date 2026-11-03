@@ -1,21 +1,56 @@
-# python-journey
+# python-journey · 数据质量校验器
 
-李邦都的 Python 学习仓库（B 方案）。每个知识点以「可运行脚本」沉淀，不做空笔记。
+> 李邦都的 Python 学习仓库（B 方案）。每个知识点以「可运行脚本 + 真实数据」沉淀，不做空笔记。
+> 本仓库的第一个实战工具：**监管报送数据质量校验器**——把银行报送前置质检的 6 类规则，用 pandas 复刻成可复用脚本。
 
-## 环境
-托管 Python 3.13.12 隔离环境（已装 pandas/numpy/requests/openpyxl/python-dotenv）：
-```
-C:\Users\12821\.workbuddy\binaries\python\envs\default\Scripts\python.exe
-```
+## 这个工具解决什么
 
-## 运行
-```
-PY python-journey/week1_explore.py              # 默认读 sample.csv
-PY python-journey/week1_explore.py 数据.xlsx    # 读自己的文件
-```
-（PY = 上面的 python.exe 路径）
+监管报送前，客户/账户/交易三类抽取数据常混入空值、重复主键、证件号位数错、日期格式乱、取值域越界、外键断裂、金额负值等脏数据。手工排查慢且漏。
+本脚本用向量化校验一次性抓全，跑一遍即可输出违规清单。
 
-## 周计划索引
-- `week1_explore.py` —— 第 1 周：读文件 / 看结构 / 查空值 / 预览（已跑通）
-- `week3_validation.py` —— 第 3 周：监管报送校验规则 pandas 版（非空/唯一/格式/取值域/外键/业务规则），含 `data/` 示例数据（已跑通，命中 15 条植入违规）
-- 后续：元数据比对器、FastAPI 工具服务、RAG 报送口径问答 ……（按《Python高效学习路径-B方案.md》推进）
+## 功能
+
+`week3_validation.py` 实现 6 类报送质检规则：
+
+| 规则 | 说明 |
+|------|------|
+| 非空校验 | 关键字段（客户号/账户号/金额等）不允许空 |
+| 唯一性 | 主键（cust_id / acct_id / txn_id）不重复 |
+| 格式校验 | 证件号 18 位、日期 `YYYY-MM-DD` |
+| 取值域 | status / txn_type 等枚举值合法 |
+| 外键 | 账户→客户、交易→账户 引用完整 |
+| 业务规则 | 交易金额 ≥ 0、余额符号合理 |
+
+关键细节：代码型字段（id_no/status/txn_type）按**字符串读取**，避免 `"01"` 被 pandas 误转成 `1` 导致取值域全误报。
+
+## 快速开始
+
+```bash
+# 默认读 data/ 示例（含 15 条植入违规）
+PY week3_validation.py
+
+# 指向你自己的报送抽取样本（任意三张表目录）
+PY week3_validation.py --data 你的目录
+```
+> `PY` = `C:\Users\12821\.workbuddy\binaries\python\envs\default\Scripts\python.exe`
+
+## 实测
+
+用一份脱敏合成的支行报送抽取样本（`data_real/`，22 条植入违规）实跑，6 类规则全部命中：
+空值 5 · 唯一性 6 · 证件号长度 2 · 日期格式 2 · 取值域 2 · 外键 4 · 金额非负 2。
+
+## 诚实边界（面试可如实说）
+
+- 日期只查 `YYYY-MM-DD` 格式，不查语义合法性（`2024-13-01` 会漏），真上线需 `pd.to_datetime(errors="coerce")` 二审；
+- 规则硬编码在 `main()`，下一步抽成码表驱动，可做成 78 条 PL/SQL 报送规则的 pandas 版雏形。
+
+## 目录
+
+- `week1_explore.py` —— 第 1 周：读文件 / 看结构 / 查空值 / 预览
+- `week3_validation.py` —— 第 3 周：监管报送校验规则 pandas 版（含 `--data` 入参）
+- `data/` —— 教学示例（15 条违规）
+- `data_real/` —— 脱敏合成的真实感样例（22 条违规）
+
+## 后续路线
+
+元数据比对器 · FastAPI 工具服务 · RAG 报送口径问答（按《Python高效学习路径-B方案.md》推进）。
