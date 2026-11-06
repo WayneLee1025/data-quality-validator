@@ -13,6 +13,7 @@
 """
 from pathlib import Path
 import argparse
+import sys
 
 import pandas as pd
 
@@ -46,7 +47,7 @@ def report(rule_name: str, bad: pd.DataFrame) -> int:
     return n
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description="监管报送前置质检（pandas 版）")
     ap.add_argument(
         "--data",
@@ -106,7 +107,9 @@ def main() -> None:
     total += report("txn.txn_amt >= 0", bad_amt)
 
     print(f"==== 报送前置质检完成：共 {total} 条违规 ====")
+    # 非零退出码：有违规即判失败，便于外部调度 / CI 接告警
+    return 1 if total else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
