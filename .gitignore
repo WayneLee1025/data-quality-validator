@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 *.pyo
+eval/docs/
+eval/_*.html
