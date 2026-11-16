@@ -3,3 +3,5 @@ __pycache__/
 *.pyo
 eval/docs/
 eval/_*.html
+eval/chunks.jsonl
+eval/report.md
