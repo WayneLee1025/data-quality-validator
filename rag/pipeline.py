@@ -68,43 +68,54 @@ def cite(hits: list[tuple[str, float]], docs: list[dict], quote_len: int = 80) -
     return out
 
 
-def decide(hits, citations, low: float, high: float) -> dict:
-    """规则化判定。不生成答案，只给『能不能答 / 要不要人看』的可验证结论。"""
-    if not hits:
-        return {"verdict": "no_answer", "needs_human": False,
-                "reason": "检索无结果", "citations": []}
+def decide_signal(top1: float, top2: float, docs_hit: list[str],
+                  low: float, high: float, margin_th: float) -> str:
+    """纯信号判定 —— 判定逻辑的单一真相源，pipeline 与 closure_eval 共用。
 
-    top = hits[0][1]
-    if top < low:
-        return {"verdict": "no_answer", "needs_human": False,
-                "reason": f"top1={top:.2f} < 阈值 {low}，判定为资料未覆盖；不硬编答案",
-                "citations": citations}
-
-    # 冲突：多个文档同时高分命中 → 口径可能不同，列各自适用条件，不替用户选
-    strong = [(cid, s) for cid, s in hits if s >= high * 0.8]
-    doc_set = {c["doc"] for c in citations if c["score"] >= high * 0.8}
-    if len(doc_set) >= 2:
-        return {"verdict": "conflict", "needs_human": True,
-                "reason": f"命中 {len(doc_set)} 份不同文档（{sorted(doc_set)}）且均高分，"
-                          "口径可能冲突；须人工说清各自适用条件，不自动择一",
-                "citations": citations}
-
-    if top < high:
-        return {"verdict": "low_confidence", "needs_human": True,
-                "reason": f"top1={top:.2f} 落在灰区 [{low},{high})；转人工复核，不自动作答",
-                "citations": citations}
-
-    return {"verdict": "answered", "needs_human": False,
-            "reason": f"top1={top:.2f} ≥ {high}；给出引用，答案要点仍须人工回原文核对",
-            "citations": citations, "answer_points": "TODO(W4)：接真模型时用引用块生成，不得脱离原文"}
+    只看检索信号，不看题面类型。分差比 = (top1-top2)/top1：
+    两份文档分数接近（margin 小）→ 更可能口径冲突/需跨文档整合；
+    top1 远高于次名 → 单一答案，别误判冲突。
+    """
+    margin = (top1 - top2) / top1 if top1 else 1.0
+    if top1 < low:
+        return "no_answer"
+    if len(docs_hit) >= 2 and margin < margin_th:
+        return "conflict"
+    if top1 < high:
+        return "low_confidence"
+    return "answered"
 
 
-def run(query: str, k: int, low: float, high: float) -> dict:
+def decide(hits, citations, low: float, high: float, margin_th: float) -> dict:
+    """把纯信号判定包装成带理由和人工标记的结果。不生成答案文本。"""
+    top1 = hits[0][1] if hits else 0.0
+    top2 = hits[1][1] if len(hits) > 1 else 0.0
+    docs_hit = sorted({c["doc"] for c in citations})
+    verdict = decide_signal(top1, top2, docs_hit, low, high, margin_th)
+    margin = (top1 - top2) / top1 if top1 else 1.0
+
+    reasons = {
+        "no_answer": f"top1={top1:.2f} < 阈值 {low}，判定为资料未覆盖；不硬编答案",
+        "conflict": f"命中 {len(docs_hit)} 份文档（{docs_hit}）且分差比={margin:.3f}<{margin_th}，"
+                    "口径可能冲突；须人工说清适用条件，不自动择一",
+        "low_confidence": f"top1={top1:.2f} 落在灰区 [{low},{high})；转人工复核，不自动作答",
+        "answered": f"top1={top1:.2f} ≥ {high} 且未触发多文档冲突；给出引用，答案要点仍须人工回原文核对",
+    }
+    result = {"verdict": verdict, "needs_human": verdict in ("conflict", "low_confidence"),
+              "reason": reasons[verdict], "citations": citations}
+    if verdict == "answered":
+        result["answer_points"] = "TODO(W4)：接真模型时用引用块生成，不得脱离原文"
+    return result
+
+
+def run(query: str, k: int, low: float, high: float, margin_th: float) -> dict:
     docs = load_chunks()
     hits = retrieve(docs, query, k)
     citations = cite(hits, docs)
-    result = decide(hits, citations, low, high)
-    return {"query": query, "thresholds": {"low": low, "high": high, "top_k": k}, **result}
+    result = decide(hits, citations, low, high, margin_th)
+    return {"query": query,
+            "thresholds": {"low": low, "high": high, "margin": margin_th, "top_k": k},
+            **result}
 
 
 def pretty(r: dict) -> str:
@@ -119,16 +130,16 @@ def pretty(r: dict) -> str:
     return "\n".join(lines)
 
 
-# 四条已实测、各覆盖一个判定分支（阈值 low=8 / high=13，BM25 top-3）：
-#   answered       top1≈23，单一文档 A 主导
-#   no_answer      top1≈6.5  < low
-#   conflict       多份文档 A/B/C 同时高分（语义上也确实跨办法与指引）
-#   low_confidence top1≈8.9 落在灰区 [8,13)
+# 四条各覆盖一个判定分支（校准阈值 low=10 / high=11 / margin=0.1，k=5）：
+#   answered       top1 高且单一文档主导
+#   no_answer      top1 < low
+#   conflict       多份文档同时高分且分差比小
+#   low_confidence top1 落在灰区 [low,high)
 DEMO = [
-    "数据分类分级怎么建",
-    "公司年度团建预算应该定多少",
-    "个人信息保护",
-    "数据治理",
+    "数据分类分级怎么建",       # answered
+    "公司年度团建预算应该定多少",  # no_answer
+    "个人信息保护",              # conflict（多文档+分差小）
+    "委托处理",                  # low_confidence（top1≈10.7，落在灰区）
 ]
 
 
@@ -136,9 +147,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="RAG 最小闭环骨架（检索→引用→判定→兜底）")
     ap.add_argument("--ask", help="单条查询")
     ap.add_argument("--demo", action="store_true", help="跑内置四类判定样例")
-    ap.add_argument("-k", type=int, default=3, help="top-k，默认 3")
-    ap.add_argument("--low", type=float, default=8.0, help="无答案阈值，默认 8.0")
-    ap.add_argument("--high", type=float, default=13.0, help="高置信阈值，默认 13.0")
+    ap.add_argument("-k", type=int, default=5, help="top-k，默认 5（k=5 跨文档召回优于 k=3）")
+    ap.add_argument("--low", type=float, default=10.0, help="无答案阈值，默认 10.0（30 题校准）")
+    ap.add_argument("--high", type=float, default=11.0, help="高置信阈值，默认 11.0（30 题校准）")
+    ap.add_argument("--margin", type=float, default=0.10, help="分差比冲突阈值，默认 0.10")
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     args = ap.parse_args()
 
@@ -146,7 +158,7 @@ def main() -> None:
     if not queries:
         ap.error("给 --ask 或 --demo")
 
-    results = [run(q, args.k, args.low, args.high) for q in queries]
+    results = [run(q, args.k, args.low, args.high, args.margin) for q in queries]
     if args.json:
         print(json.dumps(results if args.demo else results[0], ensure_ascii=False, indent=2))
     else:
