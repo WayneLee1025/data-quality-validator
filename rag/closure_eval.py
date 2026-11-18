@@ -109,11 +109,13 @@ def scan(diags, low, high, margin_th):
 
 
 def report(diags, low, high, margin_th):
+    counts = {t: sum(d["type"] == t for d in diags) for t in EXPECT}
     lines = [
         "# W3 RAG 闭环 · 真实评测报告",
         "",
         f"- 生成时间：{datetime.now():%Y-%m-%d %H:%M}",
-        "- 数据：30 题标注集（有答案 18 / 无答案 6 / 跨文档 4 / 版本冲突 2）",
+        f"- 数据：{len(diags)} 题标注集（有答案 {counts['有答案']} / 无答案 {counts['无答案']} / "
+        f"跨文档 {counts['跨文档']} / 版本冲突 {counts['版本冲突']}）",
         f"- 阈值：low={low} / high={high} / margin<{margin_th} 判冲突",
         "- 判定不调模型、不花钱；只看检索信号，type 仅事后评分用",
         "",
@@ -180,8 +182,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scan", action="store_true")
     ap.add_argument("--tune", action="store_true")
-    ap.add_argument("--low", type=float, default=10.0)
-    ap.add_argument("--high", type=float, default=11.0)
+    ap.add_argument("--low", type=float, default=11.0)
+    ap.add_argument("--high", type=float, default=12.0)
     ap.add_argument("--margin", type=float, default=0.10)
     args = ap.parse_args()
 

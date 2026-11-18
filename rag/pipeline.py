@@ -18,7 +18,7 @@
   python rag/pipeline.py --demo        # 内置样例，展示四类判定
 
 阈值 low/high 是启发式初值（来自实测分数分布），必须用 eval/questions.csv
-的 30 题标注集校准；详见 rag/README.md。
+的 50 题标注集校准；详见 rag/README.md。
 """
 from __future__ import annotations
 
@@ -130,16 +130,16 @@ def pretty(r: dict) -> str:
     return "\n".join(lines)
 
 
-# 四条各覆盖一个判定分支（校准阈值 low=10 / high=11 / margin=0.1，k=5）：
-#   answered       top1 高且单一文档主导
-#   no_answer      top1 < low
-#   conflict       多份文档同时高分且分差比小
-#   low_confidence top1 落在灰区 [low,high)
+# 四条各覆盖一个判定分支，均取自 eval/questions.csv 真实题面（阈值 low=11 / high=12 / margin=0.1，k=5）：
+#   answered       Q02  top1 高且单一文档主导
+#   no_answer      Q19  top1 < low
+#   conflict       Q25  多份文档同时高分且分差比小
+#   low_confidence Q11  top1 落在灰区 [low,high)
 DEMO = [
-    "数据分类分级怎么建",       # answered
-    "公司年度团建预算应该定多少",  # no_answer
-    "个人信息保护",              # conflict（多文档+分差小）
-    "委托处理",                  # low_confidence（top1≈10.7，落在灰区）
+    "数据分类分级工作的组织责任落在哪个层级",                      # Q02 answered
+    "数据中台部署需要几台服务器、用什么配置",                       # Q19 no_answer
+    "数据分类分级在数据安全管理办法与数据治理指引中分别如何规定、两者是什么关系",  # Q25 conflict
+    "数据标准管理包括哪些内容",                                   # Q11 low_confidence
 ]
 
 
@@ -148,8 +148,8 @@ def main() -> None:
     ap.add_argument("--ask", help="单条查询")
     ap.add_argument("--demo", action="store_true", help="跑内置四类判定样例")
     ap.add_argument("-k", type=int, default=5, help="top-k，默认 5（k=5 跨文档召回优于 k=3）")
-    ap.add_argument("--low", type=float, default=10.0, help="无答案阈值，默认 10.0（30 题校准）")
-    ap.add_argument("--high", type=float, default=11.0, help="高置信阈值，默认 11.0（30 题校准）")
+    ap.add_argument("--low", type=float, default=11.0, help="无答案阈值，默认 11.0（50 题校准）")
+    ap.add_argument("--high", type=float, default=12.0, help="高置信阈值，默认 12.0（50 题校准）")
     ap.add_argument("--margin", type=float, default=0.10, help="分差比冲突阈值，默认 0.10")
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     args = ap.parse_args()
